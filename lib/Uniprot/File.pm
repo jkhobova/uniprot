@@ -1,6 +1,7 @@
 package Uniprot::File;
 
 use Moose;
+use Uniprot::Mutation;
 
 has 'name' => (is => 'rw');
 
@@ -20,10 +21,10 @@ B<Methods>
 
 =head2 parse ( key )
 
-Allows to extract particular data from a uniprot file based on the passed key value.
+Dispatcher. Allows to extract particular data from a uniprot file based on the passed key value.
 
 Param: $key
-s - gets a sequance, lm - gets a list of mutations
+s - gets a sequance, m - gets a list of mutations
 
 =cut
 
@@ -32,7 +33,7 @@ sub parse {
 
     if ($key eq 's') {
         return $self->_get_sequence;
-    } elsif ($key eq 'lm') {
+    } elsif ($key eq 'm') {
         return $self->_get_mutations;
     } else {
         die "Incorrect key for Uniprot::File parser $!\n";
@@ -63,10 +64,15 @@ sub _get_sequence {
     return $header."\n". join ' ', @sequence;
 }
 
-=head2 _get_sequence
+=head2 _get_mutations
 
-Returns all the mutations of the file.
-FT   VARIANT      54     54       V -> M (in CMD1G; affects interaction
+Searches for mutations in the uniprot file and returns all the single amino acid mutations.
+Search keyword 'FT VARIANT'.
+Instantiates Mutation object and write it into hash
+
+my %mutations = (1 => Uniprot::Mutation obj1, 2 => Uniprot::Mutation2 ...)
+
+Returns hashref containing those mutations.
 
 =cut
 
@@ -79,11 +85,26 @@ sub _get_mutations {
     my %mutations = ();
     my $number = 0;
 
+
     while (my $line = <FILE>) {
         chomp $line;
 
+        # searching for mutation first line
+        # FT   VARIANT      54     54       V -> M (in CMD1G; affects interaction
+
         if ( $line =~ /^FT\s+VARIANT\s+(\d+)\s+(\d+)\s+(\w)\W+(\w)/ ) {
-            $mutations{++$number} = $3.$1.$4;
+            my $mutation = Uniprot::Mutation->new(title => $3.$1.$4);
+            $mutations{++$number} = $mutation;
+
+            my $pubmed_num = 0;
+            while (my $next_line = readline(FILE)) {
+                last if ($next_line =~ /FTId/ && !$pubmed_num);
+                if ($next_line =~ /^FT\s+{?ECO:\d+\WPubMed:(\d+)}?([.,])/){
+                    $pubmed_num++; # at least one publication exists
+                    $mutation->add_publication($1);
+                    last if $2 eq '.';
+                }
+            }
         }
     }
     close FILE;
