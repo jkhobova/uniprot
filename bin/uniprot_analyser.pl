@@ -68,6 +68,13 @@ if ($analysis && $analysis eq 'sequence') {
 
     $output = 'none' unless $output;
 
+} elsif ($mutated_seq_id) {
+    my $sequence = $file->parse('s');
+    my $mutations = $file->parse('m');
+
+    # using substr replace some symbols
+
+    $output = "To be implemented\n".$sequence;
 } else {
     die "Nothing to analyse yet or invalid combination of arguments\n";
 }
