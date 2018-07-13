@@ -59,6 +59,15 @@ if ($analysis && $analysis eq 'sequence') {
 
     $output = 'none' unless $output;
 
+} elsif ($mutation_id_pubs_url) {
+    my $mutation_publications = $file->parse('m');
+
+    $output .= join "\n",
+        map { $_->url }
+        @{$mutation_publications->{$mutation_id_pubs_url}->publications};
+
+    $output = 'none' unless $output;
+
 } else {
     die "Nothing to analyse yet or invalid combination of arguments\n";
 }

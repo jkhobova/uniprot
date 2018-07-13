@@ -21,18 +21,20 @@ has 'pubmed' => (
     is => 'rw',
     isa => 'Str',
     required => 1,
+    trigger => \&_generate_url,
 );
 
 has 'url' => (
-    is => 'rw',
+    is => 'ro',
     isa => 'Str',
-    default => sub {
-        my $self = shift;
-
-        return $self->pubmed
-            ? 'https://www.ncbi.nlm.nih.gov/pubmed/?term='.$self->pubmed
-            : '';
-    }
 );
+
+sub _generate_url {
+    my $self = shift;
+
+    $self->{url} = $self->{pubmed}
+        ? 'https://www.ncbi.nlm.nih.gov/pubmed/?term='.$self->{pubmed}
+        : '';
+}
 
 1;
