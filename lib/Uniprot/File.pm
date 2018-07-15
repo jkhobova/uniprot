@@ -19,72 +19,77 @@ B<Methods>
 
 =cut
 
-=head2 parse ( key )
+=head2 validate_file
 
-Dispatcher. Allows to extract particular data from a uniprot file based on the passed key value.
-
-Param: $key
-s - gets a sequance, m - gets a list of mutations
+Validates file format by the header.
 
 =cut
 
-sub parse {
-    my ($self, $key) = @_;
+sub validate_file {
+    my $self = shift;
 
-    if ($key eq 's') {
-        return $self->_get_sequence;
-    } elsif ($key eq 'm') {
-        return $self->_get_mutations;
-    } else {
-        die "Incorrect key for Uniprot::File parser $!\n";
-    }
+    open FILE, '<', $self->name or die "Could not open file ".$self->name.": $!";
+    my $header = <FILE>;
+    close FILE;
+
+    die "Does not look like a flat file containing uniprot data\n" unless ($header =~ /^ID\s+/);
 }
 
-=head2 _get_sequence
+=head2 get_sequence
 
-Returns the primary sequence of the file.
+Returns header and the primary sequence of the file.
+$header, \@sequence
 
 =cut
 
-sub _get_sequence {
+sub get_sequence {
     my $self = shift;
+
+    $self->validate_file();
 
     open FILE, '<', $self->name or die "Could not open file ".$self->name.": $!"; 
 
-    my $header = <FILE>;
-        
+    my $header;
     my @sequence=();    
+
     while (my $line = <FILE>) {
-        if ( $line =~ /^\s+([\w+\s]+)/ ) {
+        if ($line =~ /^SQ\s+SEQUENCE/) {
+            $header = $line;
+        }
+        elsif ( $line =~ /^\s+([\w+\s]+)/ ) {
             push @sequence, $1; 
         }
-
     }
     close FILE;
-    return $header."\n". join ' ', @sequence;
+    return $header, \@sequence;
 }
 
-=head2 _get_mutations
+=head2 get_mutations
 
 Searches for mutations in the uniprot file and returns all the single amino acid mutations.
 Search keyword 'FT VARIANT'.
 Instantiates Mutation object and write it into hash
 
-my %mutations = (1 => Uniprot::Mutation obj1, 2 => Uniprot::Mutation2 ...)
+my %mutations = (
+1 => Uniprot::Mutation obj1(title => 'abc'),
+2 => Uniprot::Mutation obj2(title => 'def')
+...
+)
 
 Returns hashref containing those mutations.
 
 =cut
 
 
-sub _get_mutations {
-    my $self = shift;
+sub get_mutations {
+    my ($self, $id) = @_;
+
+    $self->validate_file();
 
     open FILE, '<', $self->name or die "Could not open file ".$self->name.": $!"; 
 
     my %mutations = ();
     my $number = 0;
-
 
     while (my $line = <FILE>) {
         chomp $line;
@@ -108,7 +113,52 @@ sub _get_mutations {
         }
     }
     close FILE;
+
+    if ($id) {
+        die "Invalid mutation number\n" unless exists $mutations{$id};
+        return $mutations{$id};
+    }
     return \%mutations;
+}
+
+=head2 get_mutated_sequence ($id)
+
+Generates the protein sequence with the mutation present.
+$id is the number of the mutation we want to retun the mutated sequence for
+Returns a scalar, the protein sequence with the mutation present.
+
+=cut
+
+sub get_mutated_sequence {
+    my ($self, $id) = @_;
+
+    my ($header, $sequence) = $self->get_sequence;
+    my $mutation = $self->get_mutations($id)->title;
+
+    # joining sequence array into a variable and removing all spaces
+    # to replace certain character with a mutated variant
+
+    my $sequence_line = join '', @$sequence;
+    $sequence_line =~  s/\s+//g;
+
+    $mutation =~ /(\d+)(\w+)$/;
+
+    # replacing, offset starts from 0
+    substr $sequence_line, $1-1, 1, $2;
+
+    # format it back to what it was before, i.e spaces and new lines
+    # new lines first
+
+    $sequence_line =~ s/\G.{60}\K/\n/sg;
+    my @sequence = split '\n', $sequence_line;
+
+    my @sequence_split_segments =();
+    foreach (@sequence) {
+        my $line_with_segments = join ' ', $_ =~ /(.{10})/sg;
+        push @sequence_split_segments, $line_with_segments;
+    }
+
+    return join "\n", @sequence_split_segments;
 }
 
 1;

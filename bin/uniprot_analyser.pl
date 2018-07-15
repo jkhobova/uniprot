@@ -34,10 +34,12 @@ my $output = '';
 my $file  = Uniprot::File->new(name => $uniprot_file);
 
 if ($analysis && $analysis eq 'sequence') {
-    $output = "Sequence:\n\n".$file->parse('s');
+    my ($header, $sequence) = $file->get_sequence;
+
+    $output = $header. join '', @$sequence;
 
 } elsif ($analysis && $analysis eq 'list-mutations') {
-    my $mutations = $file->parse('m');
+    my $mutations = $file->get_mutations;
 
     $output = "Mutations:\n\n";
     $output .= join '',
@@ -46,13 +48,12 @@ if ($analysis && $analysis eq 'sequence') {
             keys %$mutations;
 
 } elsif ($mutation_id) {
-    my $mutations = $file->parse('m');
+    my $mutation = $file->get_mutations($mutation_id);
 
-    die "Invalid mutation number\n" unless exists $mutations->{$mutation_id};
-    $output = "\n".$mutations->{$mutation_id}->title."\n";
+    $output = "\n".$mutation->title."\n";
 
 } elsif ($mutation_id_pubs) {
-    my $mutation_publications = $file->parse('m');
+    my $mutation_publications = $file->get_mutations;
     $output .= join "\n",
         map { $_->pubmed }
         @{$mutation_publications->{$mutation_id_pubs}->publications};
@@ -60,7 +61,7 @@ if ($analysis && $analysis eq 'sequence') {
     $output = 'none' unless $output;
 
 } elsif ($mutation_id_pubs_url) {
-    my $mutation_publications = $file->parse('m');
+    my $mutation_publications = $file->get_mutations;
 
     $output .= join "\n",
         map { $_->url }
@@ -69,12 +70,10 @@ if ($analysis && $analysis eq 'sequence') {
     $output = 'none' unless $output;
 
 } elsif ($mutated_seq_id) {
-    my $sequence = $file->parse('s');
-    my $mutations = $file->parse('m');
+    my $sequence = $file->get_mutated_sequence($mutated_seq_id);
 
-    # using substr replace some symbols
+    $output = $sequence;
 
-    $output = "To be implemented\n".$sequence;
 } else {
     die "Nothing to analyse yet or invalid combination of arguments\n";
 }
