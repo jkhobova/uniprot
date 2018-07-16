@@ -41,7 +41,6 @@ if ($analysis && $analysis eq 'sequence') {
 } elsif ($analysis && $analysis eq 'list-mutations') {
     my $mutations = $file->get_mutations;
 
-    $output = "Mutations:\n\n";
     $output .= join '',
         map { "$_) ".$mutations->{$_}->title."\n" }
         sort { $a <=> $b}
@@ -54,6 +53,7 @@ if ($analysis && $analysis eq 'sequence') {
 
 } elsif ($mutation_id_pubs) {
     my $mutation_publications = $file->get_mutations;
+
     $output .= join "\n",
         map { $_->pubmed }
         @{$mutation_publications->{$mutation_id_pubs}->publications};

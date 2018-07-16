@@ -19,6 +19,5 @@ isa_ok($um, 'Uniprot::Mutation');
 
 $um->add_publication(123);
 is (@{$um->publications}->[0]->pubmed, 123);
-is (@{$um->publications}->[0]->url, 'https://www.ncbi.nlm.nih.gov/pubmed/?term=123');
 
 done_testing();
