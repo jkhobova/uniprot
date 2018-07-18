@@ -24,9 +24,28 @@ B<Methods>
 use Moose;
 use Uniprot::Publication;
 
+has 'wild_amino_acid' => (
+    is => 'rw',
+    isa => 'Str',
+    required => 1,
+);
+
+has 'mutated_amino_acid' => (
+    is => 'rw',
+    isa => 'Str',
+    required => 1,
+);
+
+has 'position' => (
+    is => 'rw',
+    isa => 'Num',
+    required => 1,
+);
+
 has 'title' => (
     is  => 'rw',
     isa => 'Str',
+    lazy_build => 1,
 );
 
 has 'publications' => (
@@ -40,6 +59,11 @@ has 'publications' => (
         return \@{$self->{publications}};
     },
 );
+
+sub _build_title {
+    my $self = shift;
+    return $self->wild_amino_acid . $self->position. $self->mutated_amino_acid;
+}
 
 =head2 add_publication ( $pubmed )
 

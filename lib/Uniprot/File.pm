@@ -2,8 +2,24 @@ package Uniprot::File;
 
 use Moose;
 use Uniprot::Mutation;
+use Uniprot::ProteinSequence;
 
 has 'name' => (is => 'rw');
+
+has seq => (
+    is => 'ro',
+    isa => 'Any',
+    lazy => 1,
+    builder => "_build_seq",
+);
+
+sub _build_seq {
+    my $self = shift;
+
+    my $seq = Uniprot::ProteinSequence->new();
+    return $seq;
+
+}
 
 =head1 
 
@@ -37,8 +53,9 @@ sub validate_file {
 
 =head2 get_sequence
 
-Returns header and the primary sequence of the file.
-$header, \@sequence
+Returns object ProteinSequence object.
+- header
+- sequence
 
 =cut
 
@@ -57,11 +74,15 @@ sub get_sequence {
             $header = $line;
         }
         elsif ( $line =~ /^\s+([\w+\s]+)/ ) {
-            push @sequence, $1; 
+            push @sequence, $1;
         }
     }
     close FILE;
-    return $header, \@sequence;
+
+    $self->seq->header($header);
+    $self->seq->sequence(\@sequence);
+
+    return $self->seq;
 }
 
 =head2 get_mutations
@@ -80,7 +101,6 @@ Returns hashref containing those mutations.
 
 =cut
 
-
 sub get_mutations {
     my ($self, $id) = @_;
 
@@ -98,15 +118,23 @@ sub get_mutations {
         # FT   VARIANT      54     54       V -> M (in CMD1G; affects interaction
 
         if ( $line =~ /^FT\s+VARIANT\s+(\d+)\s+(\d+)\s+(\w)\W+(\w)/ ) {
-            my $mutation = Uniprot::Mutation->new(title => $3.$1.$4);
+
+            my $mutation = Uniprot::Mutation->new(
+                wild_amino_acid => $3,
+                position => $1,
+                mutated_amino_acid => $4,
+            );
             $mutations{++$number} = $mutation;
+            $self->seq->add_mutation($mutation);
 
             my $pubmed_num = 0;
             while (my $next_line = readline(FILE)) {
                 last if ($next_line =~ /FTId/ && !$pubmed_num);
                 if ($next_line =~ /^FT\s+{?ECO:\d+\WPubMed:(\d+)}?([.,])/){
                     $pubmed_num++; # at least one publication exists
+
                     $mutation->add_publication($1);
+
                     last if $2 eq '.';
                 }
             }
@@ -115,13 +143,13 @@ sub get_mutations {
     close FILE;
 
     if ($id) {
-        die "Invalid mutation number\n" unless exists $mutations{$id};
-        return $mutations{$id};
+        die "Invalid mutation number\n" unless $self->seq->mutations->[$id-1];
+        return $self->seq->get_mutation($id-1);
     }
-    return \%mutations;
+    return $self->seq->mutations;
 }
 
-=head2 get_mutated_sequence ($id)
+=head2 parse_mutated_sequence ($id)
 
 Generates the protein sequence with the mutation present.
 $id is the number of the mutation we want to retun the mutated sequence for
@@ -129,22 +157,25 @@ Returns a scalar, the protein sequence with the mutation present.
 
 =cut
 
-sub get_mutated_sequence {
+sub parse_mutated_sequence {
     my ($self, $id) = @_;
 
-    my ($header, $sequence) = $self->get_sequence;
-    my $mutation = $self->get_mutations($id)->title;
+    my $sequence_obj = $self->get_sequence;
+    my $mutation_obj = $self->get_mutations($id);
+
+    # to do: move the below code to Uniprot::ProteinSequence mutated_sequence()
+    # debug it there and uncomment this line containing return
+    #return $self->seq->mutated_sequence($id);
 
     # joining sequence array into a variable and removing all spaces
     # to replace certain character with a mutated variant
 
-    my $sequence_line = join '', @$sequence;
+    my $sequence_line = join '', @{$sequence_obj->sequence};
+
     $sequence_line =~  s/\s+//g;
 
-    $mutation =~ /(\d+)(\w+)$/;
-
-    # replacing, offset starts from 0
-    substr $sequence_line, $1-1, 1, $2;
+    # replacing primary with mutated amino acid, offset starts from 0
+    substr $sequence_line, $mutation_obj->position-1, 1, $mutation_obj->mutated_amino_acid;
 
     # format it back to what it was before, i.e spaces and new lines
     # new lines first

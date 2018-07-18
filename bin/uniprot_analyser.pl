@@ -31,46 +31,47 @@ die "Usage: $0 --uniprot FILENAME  --analysis sequence|list-mutations --get-muta
             || $uniprot_file && ($analysis && ($analysis eq 'sequence' || $analysis eq 'list-mutations'));
 
 my $output = '';
-my $file  = Uniprot::File->new(name => $uniprot_file);
+my $parser  = Uniprot::File->new(name => $uniprot_file);
 
 if ($analysis && $analysis eq 'sequence') {
-    my ($header, $sequence) = $file->get_sequence;
+    my $sequence_obj = $parser->get_sequence;
 
-    $output = $header. join '', @$sequence;
+    $output = $sequence_obj->header. join '', @{$sequence_obj->sequence};
 
 } elsif ($analysis && $analysis eq 'list-mutations') {
-    my $mutations = $file->get_mutations;
+    my $mutations = $parser->get_mutations;
+
+    my $i=1;
 
     $output .= join '',
-        map { "$_) ".$mutations->{$_}->title."\n" }
-        sort { $a <=> $b}
-            keys %$mutations;
+        map { $i++ .")"  . $_->title."\n" }
+    @$mutations;
 
 } elsif ($mutation_id) {
-    my $mutation = $file->get_mutations($mutation_id);
+    my $mutation = $parser->get_mutations($mutation_id);
 
-    $output = "\n".$mutation->title."\n";
+    $output = $mutation->title;
 
 } elsif ($mutation_id_pubs) {
-    my $mutation_publications = $file->get_mutations;
+    my $publications = $parser->get_mutations($mutation_id_pubs)->publications;
 
     $output .= join "\n",
         map { $_->pubmed }
-        @{$mutation_publications->{$mutation_id_pubs}->publications};
+        @$publications;
 
     $output = 'none' unless $output;
 
 } elsif ($mutation_id_pubs_url) {
-    my $mutation_publications = $file->get_mutations;
+    my $publications = $parser->get_mutations($mutation_id_pubs_url)->publications;
 
     $output .= join "\n",
         map { $_->url }
-        @{$mutation_publications->{$mutation_id_pubs_url}->publications};
+        @$publications;
 
     $output = 'none' unless $output;
 
 } elsif ($mutated_seq_id) {
-    my $sequence = $file->get_mutated_sequence($mutated_seq_id);
+    my $sequence = $parser->parse_mutated_sequence($mutated_seq_id);
 
     $output = $sequence;
 
